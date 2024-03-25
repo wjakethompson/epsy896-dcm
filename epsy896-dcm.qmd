@@ -12,8 +12,7 @@ format:
     css: styles.css
 ---
 
-# Introductions
-
+# Introductions 
 
 ```{r setup}
 library(tidyverse)
@@ -41,6 +40,31 @@ purples <- unname(as.character(album_palettes$speak_now_tv))
 set_theme(plot_margin = margin(5, 0, 0, 0))
 ```
 
+# W. Jake Thompson {.my-intro}
+
+:::{.columns .v-center-container}
+
+:::{.column .image width="60%"}
+
+![](figure/wjt-2022-hex.png){width="50%" fig-alt="Hex logo for the measr R package."}
+
+:::
+
+:::{.column width="40%"}
+
+:::{.my-intro-subtitle}
+
+* Ph.D. from KU's REMS program
+* Assistant Director of Psychometrics for [Accessible Teaching, Learning, and Assessment Systems](https://atlas.ku.edu)
+* Research: Applications of diagnostic psychometric models, 
+  * Lead psychometrician and Co-PI for the [Dynamic Learnings Maps](https://dynamiclearningmaps.org) assessments
+  * PI for an [IES-funded](https://ies.ed.gov/funding/grantsearch/details.asp?ID=4546) project to develo software for diagnostic models
+
+:::
+
+:::
+
+:::
 
 # Conceptual foundations
 
@@ -1055,7 +1079,7 @@ $$
 
 ### Read data
 
-* Simulated data
+* Simulated data: https://bit.ly/sp24-epsy896-dcm
 
 ```{r read-ts}
 #| echo: true

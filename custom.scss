@@ -121,6 +121,40 @@ $btn-code-copy-color-active: $theme-wjtblue;
   text-align: center;
 }
 
+/* introduction slides*/
+.reveal .slides .my-intro {
+ /* top: 1em !important; */
+}
+
+div.my-intro .slide-background-content {
+  width: 60%;
+  height: 70%;
+  position: relative;
+  top: 20%;
+}
+
+.reveal .slides .my-intro h1 {
+  font-family: $font-family;
+  text-align: center !important;
+  
+  a {
+    color: $theme-wjtblue;
+  }
+}
+
+.reveal .slides .my-intro-subtitle {
+  font-size: 80%;
+  text-align: left;
+
+  a {
+    color: $theme-wjtblue;
+  }
+  
+  p {
+    line-height: 2em;
+  }
+}
+
 /* thank you slides */
 .reveal .slides .thank-you {
  /* top: 1em !important; */
