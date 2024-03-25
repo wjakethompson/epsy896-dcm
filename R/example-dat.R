@@ -159,23 +159,24 @@ profiles <- dcm_profile |>
 
 
 resp_albums <- tribble(
-  ~era,             ~songwriting, ~production, ~vocals, ~cohesion,
-  "Debut",               "xmark",     "xmark", "xmark",   "check",
-  "Fearless",            "check",     "xmark", "xmark",   "check",
-  "Fearless (TV)",       "check",     "xmark", "xmark",   "check",
-  "Speak Now",           "check",     "xmark", "xmark",   "xmark",
-  "Speak Now (TV)",      "check",     "xmark", "xmark",   "xmark",
-  "Red",                 "check",     "check", "check",   "xmark",
-  "Red (TV)",            "check",     "check", "check",   "xmark",
-  "1989",                "xmark",     "check", "check",   "check",
-  "1989 (TV)",           "xmark",     "check", "check",   "check",
-  "reputation",          "check",     "xmark", "check",   "xmark",
-  "Lover",               "xmark",     "xmark", "check",   "check",
-  "folklore",            "check",     "check", "check",   "check",
-  "evermore",            "check",     "check", "check",   "check",
-  "Midnights",           "check",     "xmark", "check",   "check"
+  ~album,                         ~era,             ~songwriting, ~production, ~vocals, ~cohesion,
+  "Taylor Swift",                 "Debut",               "xmark",     "xmark", "xmark",   "check",
+  "Fearless",                     "Fearless",            "check",     "xmark", "xmark",   "check",
+  "Fearless (Taylor's Version)",  "Fearless (TV)",       "check",     "xmark", "xmark",   "check",
+  "Speak Now",                    "Speak Now",           "check",     "xmark", "xmark",   "xmark",
+  "Speak Now (Taylor's Version)", "Speak Now (TV)",      "check",     "xmark", "xmark",   "xmark",
+  "Red",                          "Red",                 "check",     "check", "check",   "xmark",
+  "Red (Taylor's Version)",       "Red (TV)",            "check",     "check", "check",   "xmark",
+  "1989",                         "1989",                "xmark",     "check", "check",   "check",
+  "1989 (Taylor's Version)",      "1989 (TV)",           "xmark",     "check", "check",   "check",
+  "reputation",                   "reputation",          "check",     "xmark", "check",   "xmark",
+  "Lover",                        "Lover",               "xmark",     "xmark", "check",   "check",
+  "folklore",                     "folklore",            "check",     "check", "check",   "check",
+  "evermore",                     "evermore",            "check",     "check", "check",   "check",
+  "Midnights",                    "Midnights",           "check",     "xmark", "check",   "check"
 ) |> 
-  mutate(across(-era, \(x) case_when(x == "xmark" ~ 0L, x == "check" ~ 1L))) |> 
+  mutate(across(-c(album, era),
+                \(x) case_when(x == "xmark" ~ 0L, x == "check" ~ 1L))) |> 
   mutate(target_theta = case_when(era == "Fearless" ~ -2.500,
                                   era == "Debut" ~ -2.080,
                                   era == "Red" ~ -1.670,
@@ -199,7 +200,7 @@ resp_albums <- tribble(
                                         with_ties = FALSE)
                           })) |> 
   unnest(selection) |> 
-  select(resp_id, era, songwriting, production, vocals, cohesion,
+  select(resp_id, album, era, songwriting, production, vocals, cohesion,
          target_theta, theta)
 
 # Taylor-fy the data -----------------------------------------------------------
@@ -244,10 +245,10 @@ albums <- map_dfr(playlists,
 taylor_data <- example_dat |> 
   mutate(album = sample(albums$album, size = n(), replace = FALSE),
          .after = resp_id) |> 
-  left_join(select(resp_albums, resp_id, era), join_by(resp_id)) |> 
-  mutate(album = case_when(is.na(era) ~ album,
-                           !is.na(era) ~ era)) |> 
-  select(-resp_id, -era) |> 
+  left_join(select(resp_albums, resp_id, ts_alb = album), join_by(resp_id)) |> 
+  mutate(album = case_when(is.na(ts_alb) ~ album,
+                           !is.na(ts_alb) ~ ts_alb)) |> 
+  select(-resp_id, -ts_alb) |> 
   write_rds(here("data", "taylor-data.rds"))
 
 taylor_qmatrix <- qmatrix |> 
@@ -301,8 +302,6 @@ album_meta <- here("figure", "images", "taylor") |>
                          str_detect(era, "tv") ~ str_replace(str_to_title(era),
                                                              "Tv", "(TV)"),
                          TRUE ~ str_to_title(era)),
-         
-         
          album = case_when(str_detect(era, "\\(TV\\)") ~
                              str_replace(era, "TV", "Taylor's Version"),
                            era == "Debut" ~ "Taylor Swift",
@@ -317,13 +316,13 @@ album_meta <- here("figure", "images", "taylor") |>
 predict(taylor_dcm, summary = FALSE) |> 
   pluck("attribute_probabilities") |> 
   mutate(across(where(posterior::is_rvar), posterior::E)) |> 
-  semi_join(resp_albums, join_by(album == era)) |> 
+  semi_join(resp_albums, join_by(album)) |> 
   mutate(across(where(is.double),
                 \(x) case_when(x < 0.5 ~ 0L, x >= 0.5 ~ 1L))) |> 
-  left_join(select(resp_albums, era, songwriting:cohesion, theta),
-            join_by(album == era, songwriting, production, vocals, cohesion)) |> 
-  rename(era = album) |> 
-  left_join(album_meta, join_by(era)) |> 
+  left_join(select(resp_albums, album, era, songwriting:cohesion, theta),
+            join_by(album, songwriting, production, vocals, cohesion)) |> 
+  relocate(era, .after = album) |> 
+  left_join(album_meta, join_by(era, album)) |> 
   select(album, era, album_release, img,
          songwriting:cohesion, popularity:user_score, theta) |> 
   arrange(album_release) |> 

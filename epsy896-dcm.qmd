@@ -268,6 +268,158 @@ taylor_profiles |>
 
 :::
 
+## Item structures for DCMs
+
+:::{.columns}
+
+:::{.column width="60%"}
+
+* Item structure: Which skills are measured by each item?
+  * Simple structure: Item measures a single skill
+  * Complex structure: Item measures 2+ skills
+
+* Defined by Q-matrix
+
+* Interactions between attributes when an item measures multiple skills driven by cognitive theory and/or empirical evidence
+  * Can proficiency of one skill compensate for non-proficiency of another?
+  * Are skill acquired in a particular order (e.g., hierarchy)?
+
+:::
+
+:::{.column width="40%"}
+
+<br>
+
+```{r taylor-qmatrix}
+read_rds(here("data", "taylor-qmatrix.rds")) |> 
+  rowid_to_column(var = "item") |> 
+  gt() |> 
+  gt_theme_measr() |> 
+  cols_align(align = "center") |> 
+  tab_options(table.font.size = 18,
+              container.height = px(600),
+              container.overflow.y = TRUE)
+```
+
+:::
+
+:::
+
+## Classification reliability
+
+:::{.columns}
+
+:::{.column width="25%"}
+
+* Easier to categorize than place along a continuum
+
+:::{.fragment fragment-index=3}
+* Can set a proficiency threshold to optimize Type 1 or Type 2 errors
+:::
+
+:::
+
+:::{.column width="75%"}
+
+:::{.r-stack}
+
+:::{.fragment fragment-index=1}
+
+```{r theta-reliability}
+#| out-width: 100%
+#| out-height: 100%
+#| fig-alt: "Line graph showing a normal distribution with a peak around 1.5."
+
+tibble(x = seq(-3, 3, by = 0.01)) |> 
+  mutate(y = dnorm(x, mean = 1.5, sd = 0.4)) |> 
+  ggplot() +
+  geom_ribbon(aes(x = x, ymin = 0.25, ymax = y + 0.25),
+              fill = NA, color = "black", linewidth = 1.5) +
+  labs(x = "Musical Knowledge", y = NULL) +
+  theme(axis.text.y = element_blank(),
+        axis.title.y = element_blank())
+```
+
+:::
+
+:::{.fragment fragment-index=2}
+
+```{r dcm-reliability}
+#| out-width: 100%
+#| out-height: 100%
+#| fig-alt: "Normal distribution with peak at 1.5 on top of categorical x-axis where values less than 0 are labelled 'Not Proficient' and values greater than 0 are labelled 'Proficient.'"
+
+threshold <- 0
+
+tibble(x = seq(-3, 3, by = 0.01)) |> 
+  mutate(y = dnorm(x, mean = 1.5, sd = 0.4)) |> 
+  ggplot() +
+  geom_ribbon(data = ~filter(., x <= threshold),
+              aes(x = x, ymin = 0.25, ymax = y + 0.25),
+              color = "black", fill = blues[1], linewidth = 1.5) +
+  geom_ribbon(data = ~filter(., x > threshold),
+              aes(x = x, ymin = 0.25, ymax = y + 0.25),
+              color = "black", fill = blues[3], linewidth = 1.5) +
+  geom_line(aes(x = x, y = y + 0.25), linewidth = 1.5) +
+  geom_rect(xmin = -3, xmax = threshold, ymin = 0, ymax = 0.2,
+            fill = blues[1]) +
+  geom_rect(xmin = threshold, xmax = 3, ymin = 0, ymax = 0.2,
+            fill = blues[3]) +
+  geom_text(aes(x = -3 + ((threshold - -3) / 2), y = 0.1, label = "Not Proficient"),
+            color = "white") +
+  geom_text(aes(x = 3 - ((3 - threshold) / 2), y = 0.1, label = "Proficient"),
+            color = "black") +
+  expand_limits(y = 0) +
+  labs(x = "Songwriting", y = NULL) +
+  theme(axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_blank())
+```
+
+:::
+
+:::{.fragment fragment-index=4}
+
+```{r dcm-reliability-threshold}
+#| out-width: 100%
+#| out-height: 100%
+#| fig-alt: "Normal distribution with peak at 1.5 on top of categorical x-axis where values less than 1 are labelled 'Not Proficient' and values greater than 1 are labelled 'Proficient.'"
+
+threshold <- 1
+
+tibble(x = seq(-3, 3, by = 0.01)) |> 
+  mutate(y = dnorm(x, mean = 1.5, sd = 0.4)) |> 
+  ggplot() +
+  geom_ribbon(data = ~filter(., x <= threshold),
+              aes(x = x, ymin = 0.25, ymax = y + 0.25),
+              color = "black", fill = blues[1], linewidth = 1.5) +
+  geom_ribbon(data = ~filter(., x > threshold),
+              aes(x = x, ymin = 0.25, ymax = y + 0.25),
+              color = "black", fill = blues[3], linewidth = 1.5) +
+  geom_line(aes(x = x, y = y + 0.25), linewidth = 1.5) +
+  geom_rect(xmin = -3, xmax = threshold, ymin = 0, ymax = 0.2,
+            fill = blues[1]) +
+  geom_rect(xmin = threshold, xmax = 3, ymin = 0, ymax = 0.2,
+            fill = blues[3]) +
+  geom_text(aes(x = -3 + ((threshold - -3) / 2), y = 0.1, label = "Not Proficient"),
+            color = "white") +
+  geom_text(aes(x = 3 - ((3 - threshold) / 2), y = 0.1, label = "Proficient"),
+            color = "black") +
+  expand_limits(y = 0) +
+  labs(x = "Songwriting", y = NULL) +
+  theme(axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_blank())
+```
+
+:::
+
+:::
+
+:::
+
+:::
+
 ## When are DCMs appropriate?
 
 Success depends on:
@@ -888,6 +1040,8 @@ $$
 
 ![](figure/measr-hex.png){fig-alt="Hex logo for the measr R package."}
 
+# Model Estimation
+
 ## What is measr?
 
 * R package that provides a fully Bayesian estimation of DCMs using [*Stan*](https://mc-stan.org)
@@ -897,16 +1051,44 @@ $$
   
 ## Example data
 
+:::{.panel-tabset}
+
+### Read data
+
+* Simulated data
+
+```{r read-ts}
+#| echo: true
+#| output: false
+ts_dat <- read_rds(here("data", "taylor-data.rds"))
+ts_qmat <- read_rds(here("data", "taylor-qmatrix.rds"))
+```
+
+### Data
+
+```{r ts-dat}
+#| echo: true
+ts_dat
+```
+
+### Q-matrix
+
+```{r ts-qmat}
+#| echo: true
+ts_qmat
+```
+
+:::
 
 ## `measr_dcm()`
 
 Estimate a DCM with Stan
 
-```{r est-taylor}
+```{r est-ts}
 #| echo: true
 ts_dcm <- measr_dcm(
-  data = ecpe_data, qmatrix = ecpe_qmatrix, # <1>
-  resp_id = "resp_id", item_id = "item_id", # <1>
+  data = ts_dat, qmatrix = ts_qmat,         # <1>
+  resp_id = "album",                        # <1>
   type = "lcdm",                            # <2>
   method = "mcmc", backend = "cmdstanr",    # <3>
   iter_warmup = 1500, iter_sampling = 500,  # <4>
@@ -920,9 +1102,9 @@ ts_dcm <- measr_dcm(
 4. Pass additional arguments to rstan or cmdstanr
 5. Save the model to save time in the future
 
-## `measr_dcm()` options {background-image="figure/backgrounds/default.png" background-size="contain"}
+## `measr_dcm()` options
 
-* `type`: Declare the type of DCM to estimate. Currently support LCDM, DINA, DINO, and C-RUM
+* `type`: Declare the type of DCM to estimate. Currently supports LCDM, DINA, DINO, and C-RUM
 
 * `method`: How to estimate the model. To sample, use "mcmc". To use Stan's optimizer, use "optim"
 
@@ -933,3 +1115,580 @@ ts_dcm <- measr_dcm(
   * `rstan::optimizing()`
   * `cmdstanr::sample()`
   * `cmdstanr::optimize()`
+
+## View predictions
+
+:::{.panel-tabset}
+
+### Calcualte results
+
+* Two types of results
+  * Class-level results
+  * Attribute-level results
+
+```{r}
+#| echo: true
+ts_results <- predict(ts_dcm, summary = FALSE)
+```
+
+### Class-level
+
+```{r}
+#| echo: true
+ts_results$class_probabilities
+```
+
+### Attribute-level 
+
+```{r}
+#| echo: true
+ts_results$attribute_probabilities
+```
+
+### Taylor Results
+
+```{r}
+#| echo: true
+ts_results$attribute_probabilities |> 
+  semi_join(taylor_albums, join_by(album == album_name))
+```
+
+:::
+
+# Model Evaluation
+
+## How to evaluate DCMs?
+
+* Three types of model evaluation we'll discuss:
+  * Absolute model fit
+  * Relative model fit
+  * Reliability
+
+## Absolute fit
+
+* How well does the model fit the data?
+
+* Overall model fit
+  * M<sub>2</sub> ([Liu et al., 2016](https://doi.org/10.3102/1076998615621293))
+  * Posterior predictive model checks (PPMCs; [Thompson, 2019](https://doi.org/10.35542/osf.io/jzqs8))
+
+* Item-level fit
+  * PPMCs ([Sinharay & Almond, 2007](https://doi.org/10.1177/0013164406292025))
+
+## M<sub>2</sub>
+
+* For the M<sub>2</sub> statistic, *p*-values greater than .05 indicate *acceptable* fit
+
+```{r}
+#| echo: true
+fit_m2(ts_dcm)
+```
+
+* The `fit_m2()` function also returns some other model fit statistics that may be familiar
+  * RMSEA: root mean square error of approximation
+  * SRMSR: standardized root mean square residual
+
+## PPMC: Raw score distribution
+
+```{r calc-raw-score}
+library(posterior)
+
+retain <- 500
+keep_draws <- sample(seq_len(ndraws(as_draws(ts_dcm))),
+                     size = retain)
+
+pi <- as_draws_df(ts_dcm) |> 
+  merge_chains() |> 
+  subset_draws(variable = "pi", draw = keep_draws) |> 
+  as_tibble() |> 
+  pivot_longer(starts_with("pi")) |> 
+  separate_wider_regex(name,
+                       patterns = c("pi\\[", item = "[0-9]*", ",", 
+                                    class = "[0-9]*", "\\]")) |> 
+  select(.draw, item, class, prob = value)
+
+format_draws <- function(x, keep) {
+  ret <- as_draws_df(x) |> 
+    merge_chains() |> 
+    subset_draws(draw = keep) |> 
+    as_tibble() |> 
+    select(.draw, starts_with("x")) |> 
+    pivot_longer(cols = -.draw, names_to = "resp_id", values_to = "prob")
+
+  return(ret)
+}
+
+all_draws <- vector(mode = "list", length = ncol(ts_results$class_probabilities) - 1)
+for (i in seq_len(ncol(ts_results$class_probabilities))[-1]) {
+  cur_name <- colnames(ts_results$class_probabilities)[i]
+  ret <- format_draws(ts_results$class_probabilities[[i]], keep = keep_draws) |> 
+    mutate(resp_id = str_replace(resp_id, "x\\[([0-9]*)\\]", "\\1"),
+           resp_id = as.integer(resp_id)) |> 
+    rename(!!cur_name := prob)
+  
+  all_draws[[i - 1]] <- ret
+}
+
+raw_scores <- all_draws |> 
+  reduce(full_join, join_by(.draw, resp_id)) |> 
+  pivot_longer(starts_with("[")) |> 
+  group_by(.draw, resp_id) |> 
+  mutate(class = 1:n()) |> 
+  slice_sample(n = 1, weight_by = value) |> 
+  ungroup() |> 
+  select(.draw, resp_id, class) |> 
+  mutate(.draw = as.integer(factor(.draw)),
+         class = as.character(class)) |> 
+  left_join(pi, join_by(.draw, class),
+            relationship = "many-to-many") |> 
+  mutate(rand = runif(n()),
+         score = as.integer(rand <= prob)) |> 
+  summarize(score = sum(score), .by = c(.draw, resp_id)) |> 
+  count(.draw, score)
+```
+
+:::{.columns}
+
+:::{.column width="30%"}
+* For each iteration, calculate the total number of respondents at each score point
+
+:::{.fragment fragment-index=2}
+
+* Calculate the expected number of respondents at each score point
+
+:::
+
+:::{.fragment fragment-index=3}
+
+* Calculate the <span style="color: #A91E47;">observed</span> number of respondents at each score point
+
+:::
+
+:::
+
+:::{.column width="70%"}
+
+:::{.r-stack}
+
+:::{.fragment fragment-index=1}
+
+```{r score-dist}
+#| out-width: 100%
+#| out-height: 50%
+#| fig-alt: "Scatter plot showing the number of respondents at each score point in each iteration."
+
+p <- ggplot() +
+  geom_point(data = raw_scores, aes(x = factor(score), y = n),
+             position = position_jitter(height = 0, seed = 1213),
+             alpha = 0.2, color = blues[3]) +
+  scale_y_comma() +
+  labs(x = "Correct Responses", y = "Respondents")
+
+p
+```
+
+:::
+
+:::{.fragment fragment-index=2}
+
+```{r exp-score}
+#| out-width: 100%
+#| out-height: 50%
+#| fig-alt: "Scatter plot showing the number of respondents at each score point in each iteration with the average number of respondents overlayed."
+
+exp_scores <- summarize(raw_scores, n = mean(n), .by = score)
+
+p <- p +
+  geom_point(data = exp_scores, aes(x = factor(score), y = n),
+             color = blues[1], shape = 18, size = 5) +
+  geom_line(data = exp_scores, aes(x = factor(score), y = n),
+            group = 1, color = blues[1])
+
+p
+```
+
+:::
+
+:::{.fragment fragment-index=3}
+
+```{r obs-score}
+#| out-width: 100%
+#| out-height: 50%
+#| fig-alt: "Scatter plot showing the number of respondents at each score point in each iteration with the average and observed number of respondents overlayed."
+
+obs_scores <- ts_dat |> 
+  pivot_longer(-album) |> 
+  summarize(score = sum(value), .by = album) |> 
+  count(score)
+
+p <- p +
+  geom_point(data = obs_scores, aes(x = factor(score), y = n),
+             color = red, shape = 16, size = 5) +
+  geom_line(data = obs_scores, aes(x = factor(score), y = n),
+            color = red, group = 1)
+
+p
+```
+
+:::
+
+:::
+
+:::
+
+:::
+
+## PPMC: $\chi^2$
+
+:::{.columns}
+
+:::{.column width="30%"}
+* Calculate a $\chi^2$-like statistic comparing the number of respondents at each score point in each iteration to the expectation
+
+:::{.fragment fragment-index=2}
+
+* Calculate the $\chi^2$ value comparing the <span style="color: #A91E47;">observed</span> data to the expectation
+
+:::
+
+:::
+
+:::{.column width="70%"}
+
+:::{.r-stack}
+
+:::{.fragment fragment-index=1}
+
+```{r chisq-dist}
+#| out-width: 100%
+#| out-height: 50%
+#| fig-alt: "Histogram of the chi-square values from each iteration."
+
+ppmc_chisq <- raw_scores |> 
+  complete(.draw, score, fill = list(n = 0L)) |> 
+  full_join(rename(exp_scores, exp = n), join_by(score)) |> 
+  arrange(.draw, score) |> 
+  mutate(piece = ((n - exp) ^ 2) / exp) |> 
+  summarize(chisq = sum(piece), .by = .draw)
+
+p <- ggplot() +
+  geom_histogram(data = ppmc_chisq, aes(x = chisq),
+                 binwidth = 2, boundary = 0,
+                 fill = blues[1], color = blues[3]) +
+  labs(x = "&chi;<sup>2</sup><sub>rep</sub>", y = "Replications") +
+  theme(axis.title.x = ggtext::element_markdown(family = "sans"))
+
+p
+```
+
+:::
+
+:::{.fragment fragment-index=2}
+
+```{r chisq-obs}
+#| out-width: 100%
+#| out-height: 50%
+#| fig-alt: "Histogram of the chi-square values from each iteration with a dashed vertical line indicating the value from the observed data."
+
+obs_chisq <- obs_scores |> 
+  full_join(rename(exp_scores, exp = n), join_by(score)) |> 
+  replace_na(list(n = 0L)) |> 
+  arrange(score) |> 
+  mutate(piece = ((n - exp) ^ 2) / exp) |> 
+  summarize(chisq = sum(piece))
+
+p <- p +
+  geom_vline(xintercept = obs_chisq$chisq,
+             linetype = "dashed", color = red)
+
+p
+```
+
+:::
+
+:::
+
+:::
+
+:::
+
+## PPMC: *ppp*
+
+* Calculate the proportion of iterations where the $\chi^2$-like statistic from replicated data set exceed the observed data statistic
+  * Posterior predictive *p*-value (*ppp*)
+  * *ppp* values between .025 and .975 represent *acceptable* model fit
+
+```{r}
+#| echo: true
+#| eval: false
+fit_ppmc(ts_dcm, model_fit = "raw_score", item_fit = NULL)
+```
+
+```{r}
+ts_dcm$fit$ppmc$model_fit$raw_score
+```
+
+## PPMC: Item-level fit
+
+:::{.panel-tabset}
+
+### Item-level fit
+
+* We can also use PPMCs to calculate item-level statistics
+  * Conditional probabilities of classes providing a correct response
+  * Odds ratios between item pairs
+
+### Conditional probabilities
+
+```{r}
+#| echo: true
+#| eval: false
+fit_ppmc(ts_dcm, model_fit = NULL, item_fit = "conditional_prob")
+```
+
+```{r}
+ts_dcm$fit$ppmc$item_fit$conditional_prob
+```
+
+### Odds ratios
+
+```{r}
+#| echo: true
+#| eval: false
+fit_ppmc(ts_dcm, model_fit = NULL, item_fit = "odds_ratio")
+```
+
+```{r}
+ts_dcm$fit$ppmc$item_fit$odds_ratio
+```
+
+:::
+
+## Relative fit
+
+* Doesn't give us information whether or not a model fits the data, only compares competing models to each other
+  * Should be evaluated in conjunction with absolute model fit
+
+* Several options available for Bayesian models
+  * PSIS-LOO ([Vehtari, 2017](https://doi.org/10.1007/s11222-016-9696-4))
+  * WAIC ([Watanabe, 2010](https://jmlr.org/papers/v11/watanabe10a.html))
+  
+## Comparison model
+
+* For a comparison, let's estimate a DINA model to our same data set
+  * Reminder: DINA is a more restrictive model than the LCDM
+
+```{r est-ts-dina}
+#| echo: true
+ts_dina <- measr_dcm(
+  data = ts_dat, qmatrix = ts_qmat,
+  resp_id = "album",
+  type = "dina",
+  method = "mcmc", backend = "cmdstanr",
+  iter_warmup = 1500, iter_sampling = 500,
+  chains = 4, parallel_chains = 4,
+  file = "fits/taylor-dina"
+)
+```
+
+## Model comparison
+
+:::{.panel-tabset}
+
+### Comparisons
+
+* Calculate information criteria with `loo()` or `waic()`
+* Compare using `loo_compare()`
+* If the absolute value of the difference is greater than 2.5 &times; standard error, that indicates a preference for the model in the first row
+
+### LOO
+
+```{r}
+#| echo: true
+lcdm_loo <- loo(ts_dcm)
+dina_loo <- loo(ts_dina)
+
+loo_compare(list(lcdm = lcdm_loo, dina = dina_loo))
+```
+
+### WAIC
+
+```{r}
+#| echo: true
+lcdm_waic <- waic(ts_dcm)
+dina_waic <- waic(ts_dina)
+
+loo_compare(list(lcdm = lcdm_waic, dina = dina_waic))
+```
+
+:::
+
+## Reliability
+
+* Reporting reliability depends on how results are estimated and reported
+
+* Reliability for:
+  * Profile-level classification
+  * Attribute-level classification
+  * Attribute-level probability of proficiency
+
+```{r}
+#| echo: true
+ts_reli <- reliability(ts_dcm)
+```
+
+
+## Profile-level classification
+
+:::{.panel-tabset}
+
+### Profile-level probabilities
+
+```{r ecpe-class-prob, echo = TRUE}
+ts_results$class_probabilities
+```
+
+### Profile-level classifications
+
+```{r ecpe-class-eval, echo = FALSE, eval = TRUE}
+ts_results$class_probabilities |> 
+  semi_join(taylor_albums,
+            join_by(album == album_name)) |> 
+  mutate(across(where(is_rvar), E)) |> 
+  pivot_longer(-album,
+               names_to = "profile",
+               values_to = "prob") |> 
+  slice_max(order_by = prob,
+            by = album)
+```
+
+### Profile reliability
+
+```{r ecpe-class-reli, echo = TRUE}
+ts_reli$pattern_reliability
+```
+
+* Estimating classification consistency and accuracy for cognitive diagnostic assessment ([Cui et al., 2012](https://doi.org/10.1111/j.1745-3984.2011.00158.x))
+
+:::
+
+## Attribute-level classification
+
+:::{.panel-tabset}
+
+### Attribute-level probabilities
+
+```{r ecpe-att-prob, echo = TRUE}
+ts_results$attribute_probabilities
+```
+
+### Attribute-level classifications
+
+```{r}
+ts_results$attribute_probabilities |> 
+  semi_join(taylor_albums, join_by(album == album_name)) |> 
+  mutate(across(where(is_rvar), E),
+         across(where(is.double),
+                ~case_when(.x > 0.5 ~ 1L,
+                           TRUE ~ 0L)))
+```
+
+### Classification reliability
+
+```{r ecpe-att-reli, echo = TRUE}
+ts_reli$map_reliability
+```
+
+* Measures of agreement to assess attribute-level classification accuracy and consistency for cognitive diagnostic assessments ([Johnson & Sinharay, 2018](https://doi.org/10.1111/jedm.12196))
+
+:::
+
+## Attribute-level probabilities
+
+:::{.panel-tabset}
+
+### Attribute-level probabilities
+
+```{r ecpe-att-prob-2, echo = TRUE}
+ts_results$attribute_probabilities
+```
+
+### Probability reliability
+
+```{r ecpe-prob-reli, echo = TRUE}
+ts_reli$eap_reliability
+```
+
+* The reliability of the posterior probability of skill attainment in diagnostic classification models ([Johnson & Sinharay, 2020](https://doi.org/10.3102/1076998619864550))
+
+:::
+
+# Summary
+
+## Diagnostic classification models
+
+
+## Estimation
+
+
+## Evaluation
+
+
+## Learn more about DCMs
+
+:::{.columns .center}
+
+:::{.column width="50%"}
+[![](figure/rupp-book.jpg){fig-alt="Cover of Diagnostic Measurement book by Rupp, Templin, and Henson." height="13em"}](https://www.amazon.com/Diagnostic-Measurement-Applications-Methodology-Sciences/dp/1606235273)
+:::
+
+:::{.column width="50%"}
+[![](figure/dcm-handbook.jpeg){fig-alt="Cover of the Handbook of Diagnostic Classification Models by von Davier and Lee." height="13em"}](https://link.springer.com/book/10.1007/978-3-030-05584-4)
+:::
+
+:::
+
+## Learn more about measr
+
+:::{.columns .v-center-container-slide}
+
+:::{.column .center}
+![](figure/measr-hex.png){width="60%" fig-alt="Hex logo for the measr R package."}
+:::
+
+:::{.column}
+
+:::{.large .spaced}
+{{< fa globe >}} [measr documentation](https://measr.info)
+
+{{< fa brands github >}} [wjakethompson/measr](https://github.com/wjakethompson/measr)
+:::
+
+:::
+
+:::
+
+# <https://epsy896-dcm.wjakethompson.com> {.thank-you data-menu-title="Get in touch"}
+
+:::{.columns .v-center-container}
+
+:::{.column .image width="60%"}
+
+![](figure/measr-hex.png){width="50%" fig-alt="Hex logo for the measr R package."}
+
+:::
+
+:::{.column width="40%"}
+
+:::{.thank-you-subtitle}
+{{< iconify fa6-solid globe >}} [wjakethompson.com](https://wjakethompson.com)  
+{{< iconify fa6-solid envelope >}} [wjakethompson@ku.edu](mailto:wjakethompson@ku.edu)  
+{{< iconify fa6-brands github >}} [@wjakethompson](https://github.com/wjakethompson)  
+{{< iconify simple-icons bluesky >}} [@wjakethompson.com](https://bsky.app/profile/wjakethompson.com)  
+{{< iconify fa6-brands mastodon >}} [@wjakethompson@fosstodon.org](https://fosstodon.org/@wjakethompson)  
+{{< iconify fa6-brands x-twitter >}} [@wjakethompson](https://twitter.com/wjakethompson)  
+:::
+
+:::
+
+:::
