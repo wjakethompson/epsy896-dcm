@@ -1,0 +1,935 @@
+---
+title: "Diagnostic Psychometrics"
+format:
+  revealjs: 
+    theme: [default, custom.scss]
+    slide-number: false
+    chalkboard: 
+      buttons: false
+    width: 1280
+    height: 720
+    preview-links: auto
+    css: styles.css
+---
+
+# Introductions
+
+
+```{r setup}
+library(tidyverse)
+library(ggmeasr)
+library(ggdist)
+library(magick)
+library(distributional)
+library(knitr)
+library(measr)
+library(taylor)
+library(here)
+
+opts_chunk$set(
+  fig.width = 7,
+  fig.asp = 0.618,
+  fig.align = "center"
+)
+
+set.seed(121389)
+
+blues <- unname(as.character(album_palettes$`1989_tv`))
+red <- unname(as.character(album_palettes$red[2]))
+purples <- unname(as.character(album_palettes$speak_now_tv))
+
+set_theme(plot_margin = margin(5, 0, 0, 0))
+```
+
+
+# Conceptual foundations
+
+
+## {data-menu-title="Our Example"}
+
+```{r taylor-grammys}
+#| out-width: 100%
+#| fit-alt: "Artistic renderings of Taylor Swift after her Grammy wins."
+
+include_graphics("figure/images/taylor-grammys.png")
+```
+
+## {data-menu-title="Taylor's Eras"}
+
+```{r all-taylor}
+#| out-width: 100%
+#| fit-alt: "Artistic renderings of Taylor Swift from all 13 album releases."
+
+include_graphics("figure/images/all-taylor.png")
+```
+
+## {data-menu-title="Classic psychometrics"}
+
+:::{.columns}
+:::{.column width="20%"}
+* Traditional assessments and psychometric models measure an overall skill or ability
+* Assume a continuous latent trait
+:::
+
+:::{.column width="80%"}
+```{r taylor-dist}
+#| out-width: 100%
+#| out-height: 100%
+#| fig-alt: "A normal distribution with images of Taylor Swift from each era overlayed."
+
+taylors <- read_rds(here("data", "taylor-results.rds")) |> 
+  mutate(x = theta, y = 0.02)
+
+base <- prior(normal(0, 1), class = "intercept") |> 
+  parse_dist(prior_def) |> 
+  ggplot(aes(xdist = .dist_obj)) +
+  stat_slab(color = blues[1], fill = blues[3])
+
+width <- 0.6
+for (i in 1:nrow(taylors)) {
+  img <- as.raster(image_read(taylors$img[i]))
+  
+  base <- base +
+    annotation_raster(img,
+                      taylors$x[i] - (width / 2),
+                      taylors$x[i] + (width / 2),
+                      taylors$y[i], taylors$y[i] + 0.25)
+}
+
+base +
+  labs(x = "Musical Knowledge", y = NULL) +
+  theme(axis.text.y = element_blank(),
+        axis.title.y = element_blank())
+```
+:::
+:::
+
+## Traditional methods 
+
+* The output is a weak ordering of teams due to error in estimates
+  * Confident *Red (Taylor's Version)* is the best
+  * Not confident which is second best (*Speak Now (Taylor's Version)*, *folklore*, *Lover*)
+
+* Limited in the types of questions that can be answered. 
+  * Why is *Taylor Swift* (debut) so low?
+  * What aspects do each album demonstrate mastery or competency of?
+  * How much skill is "enough" to be competent?
+
+## Music example 
+
+:::{.columns}
+
+:::{.column width="30%"}
+* Rather than measuring overall musical knowledge, we can break music down into set of skills or *attributes*
+  * Songwriting
+  * Production
+  * Vocals
+  * Cohesion
+:::
+
+:::{.column width="70%"}
+```{r skills-diagram}
+#| fig-asp: 0.3
+#| out-width: 80%
+#| out-height: 40%
+#| fig-alt: "Four circles representing the 4 attributes. The bottom half of each circle is sharded dark, and the top half is light, to indicate there are two categories for each attribute."
+
+library(ggforce)
+
+tibble(start = rep(c(-pi / 2, pi / 2), 4),
+       type = rep(c("Proficient", "Non-proficient"), 4),
+       skill = rep(c("Songwriting", "Production", "Vocals", "Cohesion"),
+                   each = 2),
+       x = rep(c(3, 6, 9, 12), each = 2),
+       y = 0) |> 
+  ggplot() +
+  geom_arc_bar(aes(x0 = x, y0 = y, r0 = 0, r = 1.2, start = start,
+                   end = start + pi, fill = type), color = "white",
+               show.legend = FALSE, radius = 0) +
+  geom_text(data = ~slice(., c(1, 3, 5, 7)),
+            aes(x = x, y = 0.2, label = skill), size = 5) +
+  scale_fill_manual(values = c("Proficient" = "#8BB5D2",
+                               "Non-proficient" = "#487398")) +
+  coord_equal() +
+  theme_void()
+```
+
+:::
+:::
+
+* Attributes are categorical, often dichotomous (e.g., proficient vs. non-proficient)
+
+## Diagnostic classification models
+
+* DCMs place individuals into groups according to proficiency of multiple attributes
+
+```{r taylor-profiles}
+library(gt)
+library(gtExtras)
+
+taylor_profiles <- taylors |> 
+  mutate(across(c(songwriting, production, vocals, cohesion),
+                \(x) case_when(x == 1 ~ "check", x == 0 ~ "xmark"))) |> 
+  mutate(s_color = case_when(songwriting == "xmark" ~ "#A91E47",
+                             songwriting == "check" ~ "#487398"),
+         p_color = case_when(production == "xmark" ~ "#A91E47",
+                             production == "check" ~ "#487398"),
+         v_color = case_when(vocals == "xmark" ~ "#A91E47",
+                             vocals == "check" ~ "#487398"),
+         c_color = case_when(cohesion == "xmark" ~ "#A91E47",
+                             cohesion == "check" ~ "#487398")) |> 
+  select(era, album_release, img, songwriting, production, vocals, cohesion,
+         ends_with("_color"))
+
+taylor_profiles |> 
+  filter(era %in% c("Debut", "1989", "folklore", "Red (TV)")) |> 
+  select(img, songwriting, production, vocals, cohesion,
+         ends_with("_color")) |>
+  gt() |> 
+  cols_hide(ends_with("_color")) |> 
+  cols_label(img = "") |>
+  # cols_width(img ~ px(100),
+  #            everything() ~ px(150)) |>
+  gt_img_rows(columns = img, img_source = "local", height = 75) |>
+  fmt_icon(songwriting, fill_color = from_column("s_color"), height = "40px") |> 
+  fmt_icon(production, fill_color = from_column("p_color"), height = "40px") |> 
+  fmt_icon(vocals, fill_color = from_column("v_color"), height = "40px") |> 
+  fmt_icon(cohesion, fill_color = from_column("c_color"), height = "40px") |> 
+  cols_align("center", -img) |> 
+  gt_theme_measr() |> 
+  tab_options(table.font.size = 24)
+```
+
+## Answering more questions 
+
+* Why is *Taylor Swift* (debut) so low?
+  * Subpar songwriting, production, and vocals
+* What aspects are albums competent/proficient in?
+  * DCMs provide classifications directly
+
+## Diagnostic psychometrics 
+
+* Designed to be multidimensional
+* No continuum of student achievement
+* Categorical constructs
+  * Usually binary (e.g., master/nonmaster, proficient/not proficient)
+
+* Several different names in the literature
+  * Diagnostic classification models (DCMs)
+  * Cognitive diagnostic models (CDMs)
+  * Skills assessment models
+  * Latent response models
+  * Restricted latent class models
+
+## Benefits of DCMs
+
+* Fine-grained, multidimensional results
+* Incorporates complex item structures
+* High reliability with fewer items
+
+## Results from DCM-based assessments
+
+:::{.columns}
+
+:::{.column width="70%"}
+
+```{r all-profiles}
+taylor_profiles |> 
+  arrange(album_release) |> 
+  select(img, songwriting, production, vocals, cohesion,
+         ends_with("_color")) |>
+  gt() |> 
+  cols_hide(ends_with("_color")) |> 
+  cols_label(img = "") |>
+  # cols_width(img ~ px(100),
+  #            everything() ~ px(150)) |>
+  gt_img_rows(columns = img, img_source = "local", height = 75) |>
+  fmt_icon(songwriting, fill_color = from_column("s_color"), height = "40px") |> 
+  fmt_icon(production, fill_color = from_column("p_color"), height = "40px") |> 
+  fmt_icon(vocals, fill_color = from_column("v_color"), height = "40px") |> 
+  fmt_icon(cohesion, fill_color = from_column("c_color"), height = "40px") |> 
+  cols_align("center", -img) |> 
+  gt_theme_measr() |> 
+  tab_options(table.font.size = 18,
+              container.height = px(600),
+              container.overflow.y = TRUE)
+```
+
+:::
+
+:::{.column width="30%"}
+
+* No scale, no overall "ability"
+* Students are probabilistically placed into classes
+  * Classes are represented by skill profiles
+* Feedback on specific skills as defined by the cognitive theory and test design
+
+:::
+
+:::
+
+## When are DCMs appropriate?
+
+Success depends on:
+
+1. Domain definitions
+    * What are the attributes we're trying to measure?
+    * Are the attributes measurable (e.g., with assessment items)?
+  
+2. Alignment of purpose between assessment and model
+    * Is classification the purpose?
+
+## Example applications
+
+* **Educational measurement:** The competencies that student is or is not proficient in
+  * Latent knowledge, skills, or understandings
+  * Used for tailored instruction and remediation
+  
+* **Psychiatric assessment:** The DSM criteria that an individual meets
+  * Broader diagnosis of a disorder
+
+## When are DCMs not appropriate? 
+
+* When the goal is to place individuals on a scale
+
+* DCMs do not distinguish within classes
+
+:::{.columns}
+:::{.column width="50%"}
+<br>
+```{r red-profiles}
+taylor_profiles |> 
+  filter(str_detect(era, "Red")) |> 
+  select(img, songwriting, production, vocals, cohesion,
+         ends_with("_color")) |>
+  gt() |> 
+  cols_hide(ends_with("_color")) |> 
+  cols_label(img = "") |>
+  # cols_width(img ~ px(100),
+  #            everything() ~ px(150)) |>
+  gt_img_rows(columns = img, img_source = "local", height = 75) |>
+  fmt_icon(songwriting, fill_color = from_column("s_color"), height = "40px") |> 
+  fmt_icon(production, fill_color = from_column("p_color"), height = "40px") |> 
+  fmt_icon(vocals, fill_color = from_column("v_color"), height = "40px") |> 
+  fmt_icon(cohesion, fill_color = from_column("c_color"), height = "40px") |> 
+  cols_align("center", -img) |> 
+  gt_theme_measr() |> 
+  tab_options(table.font.size = 18)
+```
+:::
+
+:::{.column width="50%"}
+```{r red-scale}
+table_taylors <- taylors |> 
+  filter(str_detect(era, "Red"))
+
+prior(normal(0, 1), class = "intercept") |> 
+  parse_dist(prior_def) |> 
+  ggplot(aes(xdist = .dist_obj)) +
+  stat_slab(color = blues[1], fill = blues[3]) -> base
+
+width <- 0.6
+for (i in 1:nrow(table_taylors)) {
+  img <- as.raster(image_read(table_taylors$img[i]))
+  
+  base <- base +
+    annotation_raster(img,
+                      table_taylors$x[i] - (width / 2),
+                      table_taylors$x[i] + (width / 2),
+                      table_taylors$y[i], table_taylors$y[i] + 0.25)
+}
+
+base +
+  labs(x = "Musical Knowledge", y = NULL) +
+  theme(axis.text.y = element_blank(),
+        axis.title.y = element_blank())
+```
+
+:::
+:::
+
+## Conceptual foundation summary
+
+:::{.columns}
+:::{.column width="50%"}
+* DCMs are psychometric models designed to classify
+  * We can define our attributes in any way that we choose
+  * Items depend on the attribute definitions
+  * Classifications are probabilistic
+  * Takes fewer items to classify than to rank/scale
+:::
+
+:::{.column .fragment width="50%"}
+* DCMs provide valuable information with more feasible data demands than other psychometric models
+  * Higher reliability than IRT/MIRT models
+  * Naturally accommodates multidimensionality
+  * Complex item structures possible
+  * Criterion-referenced interpretations
+  * Alignment of assessment goals and psychometric model
+:::
+:::
+
+
+# Statistical foundations
+
+## DCMs as statistical models
+
+* Latent class models use responses to probabilistically place individuals into latent classes
+
+* DCMs are confirmatory latent class models
+  * Latent classes specified *a priori* as attribute profiles
+  * Q-matrx specifies item-attribute structure
+  * Person parameters are attribute proficiency probabilities
+  
+## Terminology
+
+* **Respondents** (*r*): The individuals from whom behavioral data are collected
+  * For today, this is dichotomous assessment item responses
+  * Not limited to only item responses in practice
+
+* **Items** (*i*): Assessment questions used to classify/diagnose respondents
+
+* **Attributes** (*a*): Unobserved latent categorical characteristics underlying the behaviors (i.e., diagnostic status)
+  * Latent variables
+
+* **Diagnostic Assessment**: The method used to elicit behavioral data
+
+## Attribute profiles
+
+* With binary attributes, there are $2^A$ possible profiles
+
+* Example 2-attribute assessment:
+
+:::center
+[0, 0]  
+[1, 0]  
+[0, 1]  
+[1, 1]  
+:::
+
+## DCMs as latent class models
+
+$$
+\color{#D55E00}{P(X_r=x_r)} = \sum_{c=1}^C\color{#009E73}{\nu_c} \prod_{i=1}^I\color{#56B4E9}{\pi_{ic}^{x_{ir}}(1-\pi_{ic})^{1 - x_{ir}}}
+$$
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box", style="background-color: #D55E00; color: white">Observed data: Probability of observing examinee <em>r</em>'s item reponses</span>
+```
+:::
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box", style="background-color: #009E73; color: white">Structural component: Proportion of examinees in each class</span>
+```
+:::
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box", style="background-color: #56B4E9; color: white">Measurement component: Product of item response probabilities</span>
+```
+:::
+
+
+## Measurement models
+  
+* Traditional psychometrics: Item response theory, classical test theory
+  * A single, unidimensional construct
+  * Student results estimated on a continuum
+  * Performance on individual items determined by an "item characteristic curve"
+
+## {data-menu-title="First IRT item"}
+
+```{r irt-item}
+#| fig-alt: "A logistic curve showing the probability of providing a correct response."
+
+num_item <- 20
+
+set.seed(121389)
+
+items <- tibble(item = seq_len(num_item),
+                a = c(1.00, runif(num_item - 1, min = 0.7, max = 3.0)),
+                b = c(0.00, rnorm(num_item - 1, mean = 0, sd = 0.6)))
+
+probs <- expand_grid(theta = seq(-3, 3, by = 0.01),
+                     item = seq_len(num_item)) |> 
+  left_join(items, by = "item") |> 
+  mutate(log_odds = a * (theta - b),
+         prob_1 = 1 / (1 + exp(-1 * log_odds)),
+         prob_0 = 1 - prob_1)
+
+ggplot(probs, aes(x = theta)) +
+  geom_line(data = ~filter(.x, item == 1), aes(y = prob_1),
+            color = "black") +
+  expand_limits(x = c(-3, 3), y = c(0, 1)) +
+  scale_x_continuous(breaks = seq(-3, 3, by = 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  labs(x = "Knowledge, Skills, and Understandings", y = "Probability of Response")
+```
+
+## {data-menu-title="Second IRT item"}
+
+```{r irt-item2}
+#| fig-alt: "Two logistic curves showing the probability of providing a correct response for two items."
+
+ggplot(probs, aes(x = theta)) +
+  geom_line(data = ~filter(.x, item == 1), aes(y = prob_1),
+            color = "black") +
+  geom_line(data = ~filter(.x, item == 2), aes(y = prob_1),
+            color = palette_okabeito[1]) +
+  expand_limits(x = c(-3, 3), y = c(0, 1)) +
+  scale_x_continuous(breaks = seq(-3, 3, by = 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  labs(x = "Knowledge, Skills, and Understandings", y = "Probability of Response")
+```
+
+## {data-menu-title="Third IRT item"}
+
+```{r irt-item3}
+#| fig-alt: "Three logistic curves showing the probability of providing a correct response for three items."
+
+ggplot(probs, aes(x = theta)) +
+  geom_line(data = ~filter(.x, item == 1), aes(y = prob_1),
+            color = "black") +
+  geom_line(data = ~filter(.x, item == 2), aes(y = prob_1),
+            color = palette_okabeito[1]) +
+  geom_line(data = ~filter(.x, item == 3), aes(y = prob_1),
+            color = palette_okabeito[2]) +
+  expand_limits(x = c(-3, 3), y = c(0, 1)) +
+  scale_x_continuous(breaks = seq(-3, 3, by = 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  labs(x = "Knowledge, Skills, and Understandings", y = "Probability of Response")
+```
+
+## {data-menu-title="Incorrect IRT item"}
+
+```{r irt-item4}
+#| fig-alt: "Three logistic curves showing the probability of providing a correct response for three items, and 1 logistic curve showing the probabiliyt of providing an incorrect response for a fourth item."
+
+ggplot(probs, aes(x = theta)) +
+  geom_line(data = ~filter(.x, item == 1), aes(y = prob_1),
+            color = "black") +
+  geom_line(data = ~filter(.x, item == 2), aes(y = prob_1),
+            color = palette_okabeito[1]) +
+  geom_line(data = ~filter(.x, item == 3), aes(y = prob_1),
+            color = palette_okabeito[2]) +
+  geom_line(data = ~filter(.x, item == 4), aes(y = prob_0),
+            color = palette_okabeito[3]) +
+  expand_limits(x = c(-3, 3), y = c(0, 1)) +
+  scale_x_continuous(breaks = seq(-3, 3, by = 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  labs(x = "Knowledge, Skills, and Understandings", y = "Probability of Response")
+```
+
+## IRT student estimate {visibility="hidden"}
+
+:::{.columns}
+
+:::{.column width="25%"}
+
+* Multiply the ICCs together
+
+* Student estimate is the peak of the curve
+
+* Spread of the curve represents uncertainty in estimate
+
+:::
+
+:::{.column width="75%"}
+
+```{r irt-student-estimate}
+#| out-width: 100%
+#| out-height: 100%
+#| fig-alt: "Line graph in the shape of normal distribution. A dashed vertical line indicates the location of the peak of the curve."
+
+probs |> 
+  filter(item <= 4) |> 
+  mutate(response_prob = case_when(item %in% c(4) ~ prob_0,
+                                   .default = prob_1)) |> 
+  summarize(logll = sum(log(response_prob)),
+            .by = theta) |> 
+  mutate(likelihood = exp(logll)) |> 
+  ggplot(aes(x = theta)) +
+  geom_line(aes(y = likelihood)) +
+  geom_vline(aes(xintercept = theta[which.max(likelihood)]),
+             linetype = "dashed") +
+  scale_x_continuous(breaks = seq(-3, 3, by = 1)) +
+  labs(x = "Knowledge, Skills, and Understandings", y = "Likelihood")
+```
+
+:::
+
+:::
+
+## Diagnostic assessment items
+
+* Can be multidimensional
+
+* No continuum of student achievement
+
+* Categorical constructs
+  * Usually binary (e.g., master/nonmaster, proficient/not proficient)
+  
+## DCM measurement models
+
+Reminder: We're currently focusing on the [measurement model]{.blue-highlight}.
+
+$$
+\color{#D55E00}{P(X_r=x_r)} = \sum_{c=1}^C\color{#009E73}{\nu_c} \prod_{i=1}^I\color{#56B4E9}{\pi_{ic}^{x_{ir}}(1-\pi_{ic})^{1 - x_{ir}}}
+$$
+
+Different DCMs define &pi;<sub>ic</sub> in different ways
+
+  
+## DCM measurement models
+
+* Consider an assessment that measures 2 attributes
+
+* With binary attributes there are $2^A$ possible profiles
+
+:::center
+[0, 0]  
+[1, 0]  
+[0, 1]  
+[1, 1]  
+:::
+
+* Items can measure one or both attributes
+
+* Item characteristic bar charts
+
+## Single-attribute DCM item
+
+```{r dcm-single-att-item}
+#| fig-alt: "Bar graph showing a high probability of providing a correct response when proficient on attribute 1."
+
+tibble(x = c("[0, 0]", "[1, 0]", "[0, 1]", "[1, 1]"),
+       y = c(0.15, 0.90, 0.15, 0.90)) |> 
+  mutate(x = fct_inorder(x),
+         prof = y > 0.5) |> 
+  ggplot(aes(x = x, y = y, fill = prof)) +
+  geom_col(show.legend = FALSE) +
+  expand_limits(y = c(0, 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  scale_fill_manual(values = c(`TRUE` = blues[3],
+                               `FALSE` = red)) +
+  labs(x = "Profile", y = "Probability of Correct Response")
+```
+
+## Multi-attribute items
+
+* When items measure multiple attributes, what level of mastery is needed in order to provide a correct response?
+
+* Many different types of DCMs that define this probability differently
+  * Compensatory (e.g., DINO)
+  * Noncompensatory (e.g., DINA)
+  * Partially compensatory (e.g., C-RUM)
+
+* General diagnostic models (e.g., LCDM)
+
+* Each DCM makes different assumptions about how attributes proficiencies combine/interact to produce an item response
+
+## Compensatory DCMs
+
+:::{.columns}
+:::{.column width="30%"}
+* Must be proficient in at least 1 attribute measured by the item to provide a correct response
+
+* Deterministic inputs, noisy "or" gate (DINO; [Templin & Henson, 2006](https://doi.org/10.1037/1082-989X.11.3.287))
+:::
+
+:::{.column width="70%"}
+```{r}
+#| out-width: 100%
+#| out-height: 50%
+tibble(x = c("[0, 0]", "[1, 0]", "[0, 1]", "[1, 1]"),
+       y = c(0.15, 0.90, 0.90, 0.90)) |> 
+  mutate(x = fct_inorder(x),
+         prof = y > 0.5) |> 
+  ggplot(aes(x = x, y = y, fill = prof)) +
+  geom_col(show.legend = FALSE) +
+  expand_limits(y = c(0, 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  scale_fill_manual(values = c(`TRUE` = blues[3],
+                               `FALSE` = red)) +
+  labs(x = "Profile", y = "Probability of Correct Response")
+```
+:::
+:::
+
+## Non-compensatory DCMs
+
+:::{.columns}
+:::{.column width="30%"}
+* Must be proficient in all attributes measured by the item to provide a correct response
+
+* Deterministic inputs, noisy "and" gate (DINA; [de la Torre & Douglas, 2004](https://doi.org/10.1007/BF02295640))
+:::
+
+:::{.column width="70%"}
+```{r}
+#| out-width: 100%
+#| out-height: 50%
+tibble(x = c("[0, 0]", "[1, 0]", "[0, 1]", "[1, 1]"),
+       y = c(0.15, 0.15, 0.15, 0.90)) |> 
+  mutate(x = fct_inorder(x),
+         prof = y > 0.5) |> 
+  ggplot(aes(x = x, y = y, fill = prof)) +
+  geom_col(show.legend = FALSE) +
+  expand_limits(y = c(0, 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  scale_fill_manual(values = c(`TRUE` = blues[3],
+                               `FALSE` = red)) +
+  labs(x = "Profile", y = "Probability of Correct Response")
+```
+:::
+:::
+
+## Partially Compensatory DCMs
+
+:::{.columns}
+:::{.column width="30%"}
+* Separate increases for each acquired attribute
+
+* Compensatory reparameterized unified model (C-RUM; [Hartz, 2002](https://www.proquest.com/openview/f2b96e40dc1c5aded37b703d860f7c21/1))
+:::
+
+:::{.column width="70%"}
+```{r}
+#| out-width: 100%
+#| out-height: 50%
+tibble(x = c("[0, 0]", "[1, 0]", "[0, 1]", "[1, 1]"),
+       y = c(0.15, 0.40, 0.35, 0.67)) |> 
+  mutate(x = fct_inorder(x),
+         prof = case_when(y < 0.2 ~ "FALSE",
+                          y > 0.5 ~ "TRUE",
+                          TRUE ~ "Partial")) |> 
+  ggplot(aes(x = x, y = y, fill = prof)) +
+  geom_col(show.legend = FALSE) +
+  expand_limits(y = c(0, 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  scale_fill_manual(values = c("TRUE" = blues[3],
+                               "FALSE" = red,
+                               "Partial" = purples[4])) +
+  labs(x = "Profile", y = "Probability of Correct Response")
+```
+:::
+:::
+
+## Which DCM to use?
+
+* DINO, DINA, and C-RUM are just 3 of the MANY models that are available
+* Each model comes with its own set of restrictions, and we typically have to specify a single model that is used for all items (software constraint)
+
+* General form diagnostic models  
+  * Flexible; can subsume other more restrictive models
+  * Again, several possibilities (e.g., G-DINA, GDM)
+  
+  ::: {.fragment}
+  * Loglinear cognitive diagnostic model
+  :::
+
+## Loglinear cognitive diagnostic model (LCDM)
+
+:::{.columns}
+:::{.column width="30%"}
+* Different response probabilities for each class (partially compensatory)
+
+* Log-linear cognitive diagnostic model (LCDM; [Henson et al., 2009](https://doi.org/10.1007/s11336-008-9089-5))
+:::
+
+:::{.column width="70%"}
+```{r}
+#| out-width: 100%
+#| out-height: 50%
+tibble(x = c("[0, 0]", "[1, 0]", "[0, 1]", "[1, 1]"),
+       y = c(0.15, 0.60, 0.40, 0.90)) |> 
+  mutate(x = fct_inorder(x),
+         prof = case_when(y < 0.2 ~ "FALSE",
+                          y > 0.8 ~ "TRUE",
+                          TRUE ~ "Partial")) |> 
+  ggplot(aes(x = x, y = y, fill = prof)) +
+  geom_col(show.legend = FALSE) +
+  expand_limits(y = c(0, 1)) +
+  scale_y_percent(breaks = seq(0, 1, by = 0.2)) +
+  scale_fill_manual(values = c("TRUE" = blues[3],
+                               "FALSE" = red,
+                               "Partial" = purples[4])) +
+  labs(x = "Profile", y = "Probability of Correct Response")
+```
+:::
+:::
+
+## Simple structure LCDM
+
+Item measures only 1 attribute
+
+$$
+\text{logit}(X_i = 1) = \color{#A91E47}{\lambda_{i,0}} + \color{#8BB5D2}{\lambda_{i,1(1)}}\color{#81A757}{\alpha}
+$$
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box2", style="background-color: #A91E47; color: white">&lambda;<sub>i,0</sub>: Log-odds when not proficient</span>
+```
+:::
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box2", style="background-color: #8BB5D2; color: white">&lambda;<sub>i,1(1)</sub>: Increase in log-odds when proficient</span>
+```
+:::
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box2", style="background-color: #81A757; color: white">&alpha;: Attribute proficiency status (either 0 or 1)</span>
+```
+:::
+
+## Subscript notation 
+
+:::{.columns}
+:::{.column .center .larger width="40%"}
+
+</br></br>
+
+```{=html}
+&lambda;<sub>i,e(&alpha;<sub>1</sub>)</sub>
+```
+
+:::
+
+:::{.column width="60%"}
+:::{.fragment}
+- *i* = The item to which the parameter belongs
+:::
+
+:::{.fragment}
+- *e* = The level of the effect
+  - 0 = intercept
+  - 1 = main effect
+  - 2 = two-way interaction
+  - 3 = three-way interaction
+  - Etc.
+:::
+
+:::{.fragment}
+- (&alpha;<sub>1</sub>,...) = The attributes to which the effect applies
+  - The same number of attributes as listed in subscript 2
+:::
+:::
+:::
+
+## Complex structure LCDM 
+
+Item measures multiple attributes
+
+$$
+\text{logit}(X_i = 1) = \color{#A91E47}{\lambda_{i,0}} + \color{#874886}{\lambda_{i,1(1)}\alpha_1} + \color{#96689A}{\lambda_{i,1(2)}\alpha_2} +
+\color{#8BB5D2}{\lambda_{i,2(1,2)}\alpha_1\alpha_2}
+$$
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box2", style="background-color: #A91E47; color: white">Log-odds when proficient in neither attribute</span>
+```
+:::
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box2", style="background-color: #874886; color: white">Increase in log-odds when proficient in attribute 1</span>
+```
+:::
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box2", style="background-color: #96689A; color: white">Increase in log-odds when proficient in attribute 2</span>
+```
+:::
+
+:::{.fragment}
+```{=html}
+<span class="eqn-box2", style="background-color: #8BB5D2; color: white">Change in log-odds when proficient in both attributes</span>
+```
+:::
+
+
+## Defining DCM structures
+
+* Attribute and item relationships are defined in the Q-matrix
+
+* Q-matrix
+  * *I* $\times$ *A* matrix
+  * 0 = Attribute is not measured by the item
+  * 1 = Attribute is measured by the item
+  
+## The LCDM as a general DCM 
+
+* So called "general" DCM because the LCDM subsumes other DCMs
+
+* Constraints on item parameters make LCDM equivalent to other DCMs (e.g., DINA and DINO)
+  * Interactive Shiny app: <https://atlas-aai.shinyapps.io/dcm-probs/>
+  * DINA
+    * Only the intercept and highest-order interaction are non-0
+  * DINO
+    * All main effects are equal
+    * All two-way interactions are -1 $\times$ main effect
+    * All three-way interactions are -1 $\times$ two-way interaction (i.e., equal to main effects)
+    * Etc.
+  * C-RUM
+    * Only the intercept and main effects are non-0 (i.e., interactions are not estimated)
+
+* Testable hypotheses!
+
+# Estimation and Evaluation
+
+# {data-menu-title="measr" background-color="#023047" background-iframe="grid-worms/index.html"}
+
+![](figure/measr-hex.png){fig-alt="Hex logo for the measr R package."}
+
+## What is measr?
+
+* R package that provides a fully Bayesian estimation of DCMs using [*Stan*](https://mc-stan.org)
+* Provides additional functions to automate the evaluation of DCMs
+  * Model fit
+  * Classification accuracy and consistency
+  
+## Example data
+
+
+## `measr_dcm()`
+
+Estimate a DCM with Stan
+
+```{r est-taylor}
+#| echo: true
+ts_dcm <- measr_dcm(
+  data = ecpe_data, qmatrix = ecpe_qmatrix, # <1>
+  resp_id = "resp_id", item_id = "item_id", # <1>
+  type = "lcdm",                            # <2>
+  method = "mcmc", backend = "cmdstanr",    # <3>
+  iter_warmup = 1500, iter_sampling = 500,  # <4>
+  chains = 4, parallel_chains = 4,          # <4>
+  file = "fits/taylor-lcdm"                 # <5>
+)
+```
+1. Specify your data, Q-matrix, and ID columns
+2. Choose the DCM to estimate (e.g., LCDM, DINA, etc.)
+3. Choose the estimation engine
+4. Pass additional arguments to rstan or cmdstanr
+5. Save the model to save time in the future
+
+## `measr_dcm()` options {background-image="figure/backgrounds/default.png" background-size="contain"}
+
+* `type`: Declare the type of DCM to estimate. Currently support LCDM, DINA, DINO, and C-RUM
+
+* `method`: How to estimate the model. To sample, use "mcmc". To use Stan's optimizer, use "optim"
+
+* `backend`: Which engine to use, either "rstan" or "cmdstanr"
+
+* `...`: Additional arguments that are passed to, depending on the `method` and `backend`:
+  * `rstan::sampling()`
+  * `rstan::optimizing()`
+  * `cmdstanr::sample()`
+  * `cmdstanr::optimize()`
