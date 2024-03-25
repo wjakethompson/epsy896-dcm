@@ -1651,12 +1651,14 @@ ts_reli$eap_reliability
 
 ## Diagnostic classification models
 
+* Confirmatory latent class models with categorical latent variables
 
-## Estimation
+* Many benefits over traditional methods
+  * Fine-grained, multidimensional results
+  * Incorporates complex item structures
+  * High reliability with fewer items
 
-
-## Evaluation
-
+* Broad applicability in educational and psychological measurement
 
 ## Learn more about DCMs
 
