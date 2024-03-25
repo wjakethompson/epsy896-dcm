@@ -1,4 +1,4 @@
 - source: epsy896-dcm.qmd
   netlify:
     - id: 4e731ea4-843e-480b-9793-efd218f11d7e
-      url: 'https://stately-speculoos-61717b.netlify.app'
+      url: 'https://epsy896-dcm.wjakethompson.com'
